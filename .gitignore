@@ -1,0 +1,15 @@
+/.venv/
+/.cache/
+/web_runs/
+/runs/
+/final-data/
+/panos_out/
+/models/condition.json
+/models/*.pt
+!/models/odn-yolo26s.pt
+!/models/manhole-yolo26s.pt
+__pycache__/
+*.py[cod]
+.env
+.env.*
+*.log

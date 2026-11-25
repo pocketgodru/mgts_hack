@@ -1,0 +1,32 @@
+{
+  "eval_site_00804_0.jpg": {
+    "latitude": 55.83486779719999,
+    "longitude": 37.36069645199999,
+    "coordinate_source": "panorama"
+  },
+  "site_01599_f2.jpg": {
+    "latitude": 55.8503289358,
+    "longitude": 37.4841858087,
+    "coordinate_source": "panorama"
+  },
+  "site_02099_f0.jpg": {
+    "latitude": 55.730443820599994,
+    "longitude": 37.63018098719999,
+    "coordinate_source": "panorama"
+  },
+  "site_02812_f2.jpg": {
+    "latitude": 55.682646729099986,
+    "longitude": 37.8533040338,
+    "coordinate_source": "panorama"
+  },
+  "site_02341_f0.jpg": {
+    "latitude": 55.743415309999996,
+    "longitude": 37.63900201999999,
+    "coordinate_source": "panorama"
+  },
+  "site_01932_f0.jpg": {
+    "latitude": 55.77707515000001,
+    "longitude": 37.6564206,
+    "coordinate_source": "panorama"
+  }
+}

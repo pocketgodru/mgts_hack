@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#130f15">
+  <title>Карта объектов · МГТС</title>
+  <link rel="stylesheet" href="/static/vendor/leaflet/dist/leaflet.css">
+  <link rel="stylesheet" href="/static/styles.css?v=map-legend">
+  <script defer src="/static/vendor/leaflet/dist/leaflet.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <header class="topbar glass">
+    <a class="brand" href="/" aria-label="МГТС, на обзор">
+      <span class="brand-mark">МГТС</span>
+      <span class="brand-title">Городской мониторинг</span>
+    </a>
+    <nav class="nav" aria-label="Разделы">
+      <a href="/">Обзор</a>
+      <a href="/routes" aria-current="page">Карта</a>
+      <a id="route-registry-link" href="/#registry">Реестр</a>
+    </nav>
+    <span id="health" class="health" role="status"><i aria-hidden="true"></i><span>Проверяем модели</span></span>
+  </header>
+
+  <main class="page routes-page">
+    <header class="routes-heading">
+      <h1>Карта объектов</h1>
+      <span id="map-summary" class="quiet-pill" role="status">Загружаем точки</span>
+    </header>
+    <p id="route-error" class="error" role="alert" hidden></p>
+    <div id="route-layout" class="route-layout">
+      <section class="panel glass map-panel" aria-label="Карта объектов">
+        <div id="route-list" class="route-list" aria-label="Режим карты"></div>
+        <div class="filters" id="archive-map-filters" hidden>
+          <div><label for="archive-kind-filter">Архив БС</label><select id="archive-kind-filter"><option value="">Все точки БС</option><option value="panorama">С панорамами</option><option value="equipment">Детекции оборудования</option><option value="manhole">Кандидаты в люки</option><option value="missing">Без панорам</option><option value="false_positive">Ошибки модели</option></select></div>
+        </div>
+        <div class="filters" id="demo-map-filters">
+          <div><label for="demo-kind-filter">Объекты</label><select id="demo-kind-filter"><option value="">Все</option><option value="odn">Опоры</option><option value="manhole">Кандидаты в люки</option><option value="false_positive">Ошибки модели</option></select></div>
+        </div>
+        <div class="filters" id="map-filters" hidden>
+          <div><label for="kind-filter">Тип</label><select id="kind-filter"><option value="">Все типы</option><option value="odn">Опоры</option><option value="manhole">Колодцы</option></select></div>
+          <div><label for="status-filter">Состояние</label><select id="status-filter"><option value="">Все статусы</option><option value="review">Проверка</option><option value="repair">Ремонт</option><option value="normal">Норма</option><option value="unassessed">Не оценивалось</option></select></div>
+        </div>
+        <div id="map" class="map" aria-label="Карта маршрутов и обнаруженных объектов"></div>
+        <ul id="map-legend" class="map-legend" aria-label="Обозначения точек" hidden>
+          <li><span class="map-key equipment" aria-hidden="true"></span>Оборудование</li>
+          <li data-archive-key><span class="map-key panorama" aria-hidden="true"></span>Нет уверенной находки</li>
+          <li data-archive-key><span class="map-key missing" aria-hidden="true"></span>Без кадра</li>
+          <li><span class="map-key manhole" aria-hidden="true"></span>Кандидат в люки</li>
+          <li><span class="map-key error-detection" aria-hidden="true"></span>Ошибка модели</li>
+        </ul>
+        <div class="map-foot">
+          <span id="geo-note">Точки съёмки привязаны к дороге</span>
+          <label class="map-toggle" for="basemap-select">Подложка
+            <select id="basemap-select"><option value="hybrid">Гибрид</option><option value="satellite">Спутник</option><option value="scheme">Схема</option></select>
+          </label>
+        </div>
+        <p id="basemap-note" class="basemap-note" role="status" hidden>Спутниковые снимки сейчас недоступны. Точки видны на схеме.</p>
+      </section>
+
+      <section id="route-evidence" class="panel glass route-evidence" aria-labelledby="route-evidence-title" hidden>
+        <div class="evidence-heading">
+          <div><h2 id="route-evidence-title">Кадр маршрута</h2><p id="route-evidence-meta"></p></div>
+          <label for="route-view" class="visually-hidden">Вид кадра маршрута</label>
+          <select id="route-view"><option value="modules">Модули крупно</option><option value="frame">Весь кадр</option></select>
+        </div>
+        <button id="route-zoom" class="route-picture" type="button" aria-label="Увеличить кадр маршрута">
+          <canvas id="route-canvas" role="img"></canvas>
+        </button>
+        <ul id="route-modules" class="module-list" aria-label="Детекции оборудования"></ul>
+        <div id="route-stops" class="route-list" aria-label="Кадры маршрута"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">МГТС · Мониторинг инфраструктуры</footer>
+
+  <dialog id="preview" class="preview glass">
+    <div class="preview-header"><div><strong id="preview-caption"></strong><small id="preview-meta"></small></div><form method="dialog"><button class="button glass-button small" aria-label="Закрыть кадр">Закрыть</button></form></div>
+    <canvas id="preview-canvas" role="img"></canvas>
+  </dialog>
+</body>
+</html>

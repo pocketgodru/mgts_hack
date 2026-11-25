@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#130f15">
+  <meta name="description" content="Анализ кадров и реестр городской инфраструктуры МГТС">
+  <title>МГТС · Городской мониторинг</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <header class="topbar glass">
+    <a class="brand" href="#overview" aria-label="МГТС, на обзор">
+      <span class="brand-mark">МГТС</span>
+      <span class="brand-title">Городской мониторинг</span>
+    </a>
+    <nav class="nav" aria-label="Разделы">
+      <a href="#overview" aria-current="location">Обзор</a>
+      <a href="/routes">Карта</a>
+      <a href="#registry">Реестр</a>
+    </nav>
+    <span id="health" class="health" role="status"><i aria-hidden="true"></i><span>Проверяем модели</span></span>
+  </header>
+
+  <main class="page" id="overview">
+    <section class="hero glass" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <h1 id="hero-title">Инфраструктура <span>под наблюдением</span></h1>
+        <p>Загрузите кадры с городского маршрута. Система найдёт опоры и кабельные колодцы, покажет их на карте и соберёт реестр.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#upload">Загрузить фото или видео</a>
+          <button class="button glass-button" type="button" data-demo>Запустить демо</button>
+        </div>
+      </div>
+      <figure class="hero-visual">
+        <img src="/static/street-overview.jpg" width="1920" height="1080" alt="Опора с оборудованием на московской улице">
+        <div class="camera-frame" aria-hidden="true"></div>
+        <div class="target-box" aria-hidden="true"><span>Опора</span></div>
+      </figure>
+    </section>
+
+    <section id="upload" class="panel glass upload-panel" aria-labelledby="upload-title">
+      <div class="section-heading">
+        <h2 id="upload-title">Загрузка фото и видео</h2>
+        <span class="panel-icon" aria-hidden="true">+</span>
+      </div>
+      <form id="upload-form">
+        <label id="dropzone" class="dropzone" for="file-input">
+          <input id="file-input" class="visually-hidden" type="file" accept=".jpg,.jpeg,.png,.mp4,.mov,.webm" multiple>
+          <span class="stack-icon" aria-hidden="true"></span>
+          <strong>Перетащите сюда фото или видео</strong>
+          <span>До 100 фото JPEG или PNG либо одно видео MP4, MOV или WebM до 60 секунд и 150 МБ</span>
+        </label>
+        <ul id="file-list" class="file-list" aria-label="Выбранные кадры" hidden></ul>
+        <div class="upload-options">
+          <div class="metadata-input">
+            <label class="file-button" for="metadata-input"><span aria-hidden="true">+</span> <span id="metadata-label">Метаданные CSV</span></label>
+            <input id="metadata-input" class="visually-hidden" type="file" accept=".csv,text/csv">
+            <button id="clear-metadata" type="button" class="plain" hidden>Убрать</button>
+            <span id="metadata-name" class="secondary-text"></span>
+          </div>
+          <label class="switch"><input id="tile-input" type="checkbox"><span class="switch-track"></span><span>Тайлинг ОДН</span></label>
+        </div>
+        <div class="upload-footer">
+          <div class="analysis-note"><span id="condition-state">Проверяем модель состояния</span><a id="metadata-template" href="/static/metadata-template.csv" download>Шаблон CSV</a></div>
+          <button id="analyze-button" class="button primary" type="submit" disabled>Запустить анализ</button>
+        </div>
+      </form>
+      <div id="progress" class="progress" role="status" hidden><span></span>Обрабатываем кадры</div>
+      <div id="error" class="error" role="alert" hidden></div>
+    </section>
+
+    <section id="registry" class="panel glass registry-panel" aria-labelledby="registry-title">
+      <div class="section-heading registry-heading">
+        <h2 id="registry-title">Реестр объектов</h2>
+        <div id="exports" class="export-actions" hidden>
+          <a id="open-result-map" class="button glass-button small" href="/routes">На карте</a>
+          <a id="download-actions" class="button primary small" download>На проверку и ремонт</a>
+          <a id="download-registry" class="button glass-button small" download>Весь реестр CSV</a>
+        </div>
+      </div>
+      <div id="registry-empty" class="empty-state">После анализа здесь появятся объекты, их координаты, состояние и кадры.</div>
+      <div id="results" hidden>
+        <div class="stats">
+          <div><span>Кадры</span><strong id="stat-frames">0</strong></div>
+          <div><span>Объекты</span><strong id="stat-objects">0</strong></div>
+          <div><span>С координатами</span><strong id="stat-geo">0</strong></div>
+          <div><span>Проверка и ремонт</span><strong id="stat-actions">0</strong></div>
+        </div>
+        <div class="filters">
+          <div><label for="kind-filter">Тип</label><select id="kind-filter"><option value="">Все типы</option><option value="odn">Опоры</option><option value="manhole">Колодцы</option></select></div>
+          <div><label for="status-filter">Состояние</label><select id="status-filter"><option value="">Все статусы</option><option value="review">Проверка</option><option value="repair">Ремонт</option><option value="normal">Норма</option><option value="unassessed">Не оценивалось</option></select></div>
+          <p id="run-meta"></p>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Объект</th><th>Состояние</th><th>Координаты</th><th>Действие</th><th>Кадр</th></tr></thead>
+            <tbody id="registry-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="gallery-section" class="panel glass gallery-panel" aria-labelledby="gallery-title" hidden>
+      <div class="section-heading">
+        <h2 id="gallery-title">Кадры анализа</h2>
+        <a id="download-detections" class="button glass-button small" download>Детекции CSV</a>
+      </div>
+      <div class="gallery-tools">
+        <label>Слои <select id="overlay-select"><option value="all">Объекты и маски</option><option value="boxes">Границы объектов</option><option value="masks">Маски дефектов</option><option value="none">Исходный кадр</option></select></label>
+        <label class="range-label">Уверенность <input id="confidence-filter" type="range" min="0" max="95" value="0" step="5"><output id="confidence-value">0%</output></label>
+      </div>
+      <div id="gallery" class="gallery"></div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">МГТС · Мониторинг инфраструктуры</footer>
+
+  <dialog id="preview" class="preview glass">
+    <div class="preview-header"><div><strong id="preview-caption"></strong><small id="preview-meta"></small></div><form method="dialog"><button class="button glass-button small" aria-label="Закрыть кадр">Закрыть</button></form></div>
+    <canvas id="preview-canvas" role="img"></canvas>
+  </dialog>
+</body>
+</html>
