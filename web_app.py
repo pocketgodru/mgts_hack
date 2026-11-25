@@ -225,18 +225,26 @@ def build_result(run_id, directory, start, device, condition, model, fallback=Fa
 
 def inference_device():
     configured = os.getenv("MGTS_DEVICE", "auto").lower()
-    return ("0" if torch.cuda.is_available() else "cpu") if configured == "auto" else configured
+    if configured == "auto":
+        if torch.cuda.is_available():
+            return "0"
+        return "mps" if torch.backends.mps.is_available() else "cpu"
+    if configured in {"mps", "mps:0"}:
+        return "mps" if torch.backends.mps.is_available() else "cpu"
+    return configured
 
 
 def inference_backend(device):
-    if device == "cpu":
-        return "cpu"
+    if device in {"cpu", "mps"}:
+        return device
     return "rocm" if torch.version.hip else "cuda"
 
 
 def device_failure(error):
     return any(code in error.lower() for code in ("miopenstatus", "cuda error", "hip error",
-                                                   "invalid cuda", "out of memory", "device-side assert"))
+                                                   "invalid cuda", "out of memory", "device-side assert",
+                                                   "invalid mps", "mps device", "mps backend", "mpsgraph",
+                                                   "not implemented for 'mps'"))
 
 
 def detector_command(input_dir, output_dir, weights, *, tile=False, video=False):

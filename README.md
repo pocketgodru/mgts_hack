@@ -40,6 +40,22 @@ $python = '.\.venv\Scripts\python.exe'
 .\start_prototype.ps1 -Device auto
 ```
 
+### macOS · Apple Silicon без Docker
+
+На Mac с Apple Silicon установите Python 3.12 для ARM64. Официальные колёса PyTorch уже содержат поддержку [Apple Metal (MPS)](https://docs.pytorch.org/docs/main/notes/mps.html). Для этих версий PyTorch режим CPU доступен с macOS 14, а MPS — с macOS 15 при наличии поддерживаемого GPU. На Intel Mac используйте [Docker Desktop](#macos--docker-desktop).
+
+```sh
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install 'torch==2.15.0' 'torchvision==0.29.2'
+python -m pip install -r requirements.runtime.txt
+python -c "import torch; print('MPS:', torch.backends.mps.is_available())"
+PYTORCH_ENABLE_MPS_FALLBACK=1 MGTS_DEVICE=auto python -m uvicorn web_app:app --host 127.0.0.1 --port 8000
+```
+
+При доступном MPS сайт покажет **GPU · MPS**. Операции без поддержки MPS могут выполняться на CPU. Чтобы принудительно запустить анализ целиком на CPU, укажите `MGTS_DEVICE=cpu` в последней команде.
+
 ### Linux · CPU
 
 ```sh
@@ -59,6 +75,15 @@ MGTS_DEVICE=cpu python -m uvicorn web_app:app --host 127.0.0.1 --port 8000
 ```sh
 docker build --build-arg MGTS_TORCH_BACKEND=cpu -t mgts-hack:cpu .
 docker run --rm -p 127.0.0.1:8000:8000 -v mgts-hack-data:/data mgts-hack:cpu
+```
+
+### macOS · Docker Desktop
+
+Установите и запустите [Docker Desktop для Mac](https://docs.docker.com/desktop/setup/install/mac-install/). На Intel и Apple Silicon используйте один и тот же CPU-образ `linux/amd64`. На Apple Silicon Docker Desktop запустит его через эмуляцию. Для Apple Silicon быстрее начать с запуска без Docker.
+
+```sh
+docker build --platform linux/amd64 --build-arg MGTS_TORCH_BACKEND=cpu -t mgts-hack:cpu .
+docker run --rm --platform linux/amd64 -p 127.0.0.1:8000:8000 -v mgts-hack-data:/data mgts-hack:cpu
 ```
 
 ### ROCm · AMD Radeon RX 9070 XT на Linux

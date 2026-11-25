@@ -191,7 +191,9 @@ function updateHealth(data) {
 
 function deviceLabel(data) {
   if (data.device === 'cpu') return 'CPU';
-  return data.backend === 'rocm' ? 'GPU · ROCm' : 'GPU';
+  if (data.backend === 'rocm') return 'GPU · ROCm';
+  if (data.backend === 'mps') return 'GPU · MPS';
+  return 'GPU';
 }
 
 function filterRows() {
