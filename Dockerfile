@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/root/.cache/pip case "$MGTS_TORCH_BACKEND" in \
                   'torch==2.12.0+cpu' 'torchvision==0.27.0+cpu' ;; \
         *) echo "MGTS_TORCH_BACKEND must be rocm or cpu" >&2; exit 2 ;; \
     esac
-RUN python -m pip install --no-cache-dir --requirement requirements.runtime.txt \
+RUN --mount=type=cache,target=/root/.cache/pip python -m pip install --timeout 90 --retries 8 --requirement requirements.runtime.txt \
     && python -m pip check \
     && python -c "import cv2, os, torch, torchvision; assert (torch.version.hip is not None) == (os.environ['MGTS_TORCH_BACKEND'] == 'rocm'); assert torchvision.extension._has_ops()"
 
