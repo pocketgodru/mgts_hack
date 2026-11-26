@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#130f15">
+  <meta name="theme-color" content="#0b1b2e">
   <title>Карта объектов · МГТС</title>
   <link rel="stylesheet" href="/static/vendor/leaflet/dist/leaflet.css">
-  <link rel="stylesheet" href="/static/styles.css?v=map-legend">
+  <link rel="stylesheet" href="/static/styles.css?v=equipment-review">
   <script defer src="/static/vendor/leaflet/dist/leaflet.js"></script>
-  <script defer src="/static/app.js"></script>
+  <script defer src="/static/app.js?v=dss-classifier"></script>
 </head>
 <body>
   <header class="topbar glass">
     <a class="brand" href="/" aria-label="МГТС, на обзор">
-      <span class="brand-mark">МГТС</span>
+      <span class="brand-mark"><img src="/static/mgts-logo.svg" alt="МГТС"></span>
       <span class="brand-title">Городской мониторинг</span>
     </a>
     <nav class="nav" aria-label="Разделы">
@@ -40,7 +40,7 @@
           <div><label for="demo-kind-filter">Объекты</label><select id="demo-kind-filter"><option value="">Все</option><option value="odn">Опоры</option><option value="manhole">Кандидаты в люки</option><option value="false_positive">Ошибки модели</option></select></div>
         </div>
         <div class="filters" id="map-filters" hidden>
-          <div><label for="kind-filter">Тип</label><select id="kind-filter"><option value="">Все типы</option><option value="odn">Опоры</option><option value="manhole">Колодцы</option></select></div>
+          <div><label for="kind-filter">Тип</label><select id="kind-filter"><option value="">Все типы</option><option value="odn">Опоры</option><option value="manhole">Колодцы</option><option value="dss">Шкафы ДСС</option></select></div>
           <div><label for="status-filter">Состояние</label><select id="status-filter"><option value="">Все статусы</option><option value="review">Проверка</option><option value="repair">Ремонт</option><option value="normal">Норма</option><option value="unassessed">Не оценивалось</option></select></div>
         </div>
         <div id="map" class="map" aria-label="Карта маршрутов и обнаруженных объектов"></div>

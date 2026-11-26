@@ -10,7 +10,9 @@ import sys
 import time
 import uuid
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
+from typing import Literal
 
 import torch
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -31,9 +33,11 @@ DEMO_DIR = ROOT / "demo"
 DEMO_ROUTE_DATA = DEMO_DIR / "routes.json"
 DEMO_FRAMES = DEMO_DIR / "frames"
 ARCHIVE_CATALOG = ROOT / "runs/archive_panorama_scan/catalog.json"
+ARCHIVE_REVIEW = DEMO_DIR / "equipment-review"
 PANORAMA_FRAMES = ROOT / "panos_out/frames"
 ARCHIVE_FRAME_ROOTS = {"archive": PANORAMA_FRAMES, "near": ROOT / "panos_out/near_towers_25m/frames"}
 MANHOLE_WEIGHTS = ROOT / "models/manhole-yolo26s.pt"
+DSS_WEIGHTS = ROOT / os.getenv("MGTS_DSS_WEIGHTS", "models/dss-yolo26x-cls.pt")
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 MAX_FILES = 100
 MAX_IMAGE_SIZE = 30 * 1024 * 1024
@@ -90,7 +94,8 @@ def run_directory(run_id):
     return directory
 
 
-def build_result(run_id, directory, start, device, condition, model, fallback=False, video_fps=None, timings=None):
+def build_result(run_id, directory, start, device, condition, model, fallback=False, video_fps=None, timings=None,
+                 classify_only=False):
     input_dir = directory / "input"
     output_dir = directory / "output"
     frames = []
@@ -113,7 +118,7 @@ def build_result(run_id, directory, start, device, condition, model, fallback=Fa
             "original_url": original,
             "labeled_url": f"/runs/{run_id}/output/labeled/{path.name}" if rendered.is_file() else original,
             "object_id": source.get("object_id"),
-            "object_type": source.get("object_type"),
+            "object_type": "dss" if classify_only else source.get("object_type"),
             **metadata,
         })
 
@@ -176,7 +181,9 @@ def build_result(run_id, directory, start, device, condition, model, fallback=Fa
     ]
     observations = find_objects(frames, detections, registry_candidates, video_ids)
     devices = condition.available()
-    assess_objects(observations, input_dir, condition, device)
+    if classify_only:
+        devices["segmenter"] = False
+    assess_objects(observations, input_dir, condition, device, classify_only=classify_only)
     registry = group_observations(observations)
     write_registry(output_dir / "registry.csv", registry)
     action_rows = [row for row in registry if row["status"] in {"repair", "review"}]
@@ -203,7 +210,7 @@ def build_result(run_id, directory, start, device, condition, model, fallback=Fa
             **counts,
         },
         "downloads": {
-            "detections": f"/runs/{run_id}/output/detections.csv",
+            "detections": None if classify_only else f"/runs/{run_id}/output/detections.csv",
             "candidates": f"/runs/{run_id}/output/{candidate_csv}",
             "sites": f"/runs/{run_id}/output/odn_sites.csv",
             "registry": f"/runs/{run_id}/output/registry.csv",
@@ -211,7 +218,8 @@ def build_result(run_id, directory, start, device, condition, model, fallback=Fa
         },
         "elapsed_seconds": round(time.perf_counter() - start, 2),
         "model": model,
-        "condition_model": {name: getattr(condition, name).stem for name, active in devices.items() if active} or None,
+        "condition_model": ({"classifier": "YOLO26x-cls · ДСС"} if classify_only
+                            else {name: getattr(condition, name).stem for name, active in devices.items() if active} or None),
         "device": device,
         "backend": inference_backend(device),
         "cpu_fallback": fallback,
@@ -261,7 +269,7 @@ def detector_command(input_dir, output_dir, weights, *, tile=False, video=False)
     return command
 
 
-async def execute_inference(run_id, tile=False, video_fps=None):
+async def execute_inference(run_id, tile=False, video_fps=None, classify_only=False):
     directory = run_directory(run_id)
     input_dir = directory / "input"
     if not any(input_dir.iterdir()):
@@ -272,8 +280,14 @@ async def execute_inference(run_id, tile=False, video_fps=None):
         condition = load_condition_config(ROOT)
     except (OSError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=503, detail=f"Настройки модели состояния: {exc}") from exc
-    model, weights = active_detector()
-    command = detector_command(input_dir, directory / "output", weights, tile=tile, video=video_fps is not None)
+    if classify_only:
+        condition = replace(condition, classifier=DSS_WEIGHTS, normal_labels=frozenset({"normal"}),
+                            repair_labels=frozenset(), classification_confidence=0.65)
+        model, command = "YOLO26x-cls · ДСС", None
+        (directory / "output").mkdir(exist_ok=True)
+    else:
+        model, weights = active_detector()
+        command = detector_command(input_dir, directory / "output", weights, tile=tile, video=video_fps is not None)
     start = time.perf_counter()
     async with inference_lock:
         log_path = directory / "inference.log"
@@ -281,30 +295,33 @@ async def execute_inference(run_id, tile=False, video_fps=None):
         devices = (device,) if require_rocm or device == "cpu" else (device, "cpu")
         for selected_device in devices:
             fallback = selected_device != device
-            try:
-                process = await asyncio.to_thread(
-                    subprocess.run, [*command, "--device", selected_device], cwd=ROOT, stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
-                    timeout=1800, check=False,
-                )
-            except subprocess.TimeoutExpired as exc:
-                raise HTTPException(status_code=504, detail="Превышено время анализа") from exc
-            with log_path.open("a", encoding="utf-8") as log:
-                log.write(f"\n[{selected_device}]\n{process.stdout}\n")
-            if process.returncode:
-                if not require_rocm and not fallback and selected_device != "cpu" and device_failure(process.stdout):
-                    shutil.rmtree(directory / "output", ignore_errors=True)
-                    continue
-                raise HTTPException(status_code=500, detail=f"Ошибка детектора. Журнал анализа: {run_id}.")
+            if command is not None:
+                try:
+                    process = await asyncio.to_thread(
+                        subprocess.run, [*command, "--device", selected_device], cwd=ROOT, stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                        timeout=1800, check=False,
+                    )
+                except subprocess.TimeoutExpired as exc:
+                    raise HTTPException(status_code=504, detail="Превышено время анализа") from exc
+                with log_path.open("a", encoding="utf-8") as log:
+                    log.write(f"\n[{selected_device}]\n{process.stdout}\n")
+                if process.returncode:
+                    if not require_rocm and not fallback and selected_device != "cpu" and device_failure(process.stdout):
+                        shutil.rmtree(directory / "output", ignore_errors=True)
+                        continue
+                    raise HTTPException(status_code=500, detail=f"Ошибка детектора. Журнал анализа: {run_id}.")
             try:
                 return await asyncio.to_thread(
                     build_result, run_id, directory, start, selected_device, condition, model, fallback, video_fps,
+                    classify_only=classify_only,
                 )
             except (OSError, RuntimeError, ValueError) as exc:
                 with log_path.open("a", encoding="utf-8") as log:
                     log.write(f"\n{type(exc).__name__}: {exc}\n")
                 if not require_rocm and not fallback and selected_device != "cpu" and device_failure(str(exc)):
-                    shutil.rmtree(directory / "output", ignore_errors=True)
+                    if not classify_only:
+                        shutil.rmtree(directory / "output", ignore_errors=True)
                     continue
                 raise HTTPException(status_code=500, detail=f"Ошибка оценки состояния или экспорта. Журнал анализа: {run_id}.") from exc
 
@@ -340,6 +357,7 @@ def health():
         "manhole_model_available": MANHOLE_WEIGHTS.is_file(),
         "condition_model_available": any(condition.values()),
         "condition_models": condition,
+        "dss_classifier_available": DSS_WEIGHTS.is_file(),
         "condition_config_error": config_error,
     }
 
@@ -366,6 +384,39 @@ def panorama_archive_frame(source: str, frame: str):
     raise HTTPException(status_code=404, detail="Кадр архива не найден")
 
 
+@app.get("/api/equipment-review")
+def equipment_review():
+    report = ARCHIVE_REVIEW / "classifier-640.csv"
+    summary = ARCHIVE_REVIEW / "classifier-640-summary.json"
+    if not report.is_file() or not summary.is_file():
+        raise HTTPException(status_code=404, detail="Прогон классификатора пока недоступен")
+    with report.open(encoding="utf-8-sig", newline="") as stream:
+        rows = [{
+            "site_id": row["site_id"], "frame": Path(row["frame"]).name,
+            "kind": row["equipment_class"], "crop": Path(row["crop"]).name,
+            "prediction": row["classifier_prediction"], "confidence": float(row["classifier_confidence"]),
+            "output": row["classifier_output"],
+        } for row in csv.DictReader(stream, delimiter=";")]
+    return {"summary": json.loads(summary.read_text(encoding="utf-8")), "rows": rows}
+
+
+@app.get("/api/equipment-review/report")
+def equipment_review_report():
+    path = ARCHIVE_REVIEW / "classifier-640.csv"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Отчёт не найден")
+    return FileResponse(path, media_type="text/csv", filename="mgts-equipment-classifier.csv")
+
+
+@app.get("/api/equipment-review/crop/{name}")
+def equipment_review_crop(name: str):
+    if re.fullmatch(r"site_\d{5,}_f[0-3]-[0-9a-f]{8}-\d{2,}-(antenna|rru|microwave)\.jpg", name):
+        path = ARCHIVE_REVIEW / "crops" / name
+        if path.is_file():
+            return FileResponse(path, media_type="image/jpeg")
+    raise HTTPException(status_code=404, detail="Фрагмент не найден")
+
+
 @app.get("/api/routes/frame/{frame}")
 def demonstration_frame(frame: str):
     if Path(frame).name == frame and any(
@@ -378,7 +429,10 @@ def demonstration_frame(frame: str):
 
 
 @app.post("/api/analyze")
-async def analyze(files: list[UploadFile] = File(...), metadata: UploadFile | None = File(None), tile: bool = False):
+async def analyze(files: list[UploadFile] = File(...), metadata: UploadFile | None = File(None), tile: bool = False,
+                  mode: Literal["detect", "dss"] = "detect"):
+    if mode == "dss" and not DSS_WEIGHTS.is_file():
+        raise HTTPException(status_code=503, detail="Веса классификатора шкафов ДСС недоступны")
     if not files or len(files) > MAX_FILES:
         raise HTTPException(status_code=400, detail=f"Загрузите от 1 до {MAX_FILES} изображений")
     run_id = uuid.uuid4().hex
@@ -436,7 +490,7 @@ async def analyze(files: list[UploadFile] = File(...), metadata: UploadFile | No
             await upload.close()
         if metadata is not None:
             await metadata.close()
-    return await execute_inference(run_id, tile)
+    return await execute_inference(run_id, tile, classify_only=mode == "dss")
 
 
 @app.post("/api/analyze/video")

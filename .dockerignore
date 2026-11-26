@@ -18,3 +18,11 @@
 !demo/inputs.json
 !demo/frames/
 !demo/frames/*.jpg
+!demo/dss-example-report.csv
+!demo/equipment-review/
+!demo/equipment-review/classifier-640.csv
+!demo/equipment-review/classifier-640-summary.json
+!demo/equipment-review/crops/
+!demo/equipment-review/crops/*.jpg
+
+!models/dss-yolo26x-cls.pt

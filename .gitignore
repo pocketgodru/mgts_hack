@@ -13,3 +13,6 @@ __pycache__/
 .env
 .env.*
 *.log
+
+!/models/dss-yolo26x-cls.pt
+/Датасет-ДСС/

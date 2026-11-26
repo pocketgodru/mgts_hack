@@ -91,7 +91,7 @@ def square_image(image):
                               cv2.BORDER_CONSTANT, value=(114, 114, 114))
 
 
-def assess_objects(objects, input_dir, config, device):
+def assess_objects(objects, input_dir, config, device, *, classify_only=False):
     for item in objects:
         item.update(condition_result(config, None, []))
     available = config.available()
@@ -103,7 +103,7 @@ def assess_objects(objects, input_dir, config, device):
     from ultralytics import YOLO
 
     classifier = YOLO(str(config.classifier)) if available["classifier"] else None
-    segmenter = YOLO(str(config.segmenter)) if available["segmenter"] else None
+    segmenter = YOLO(str(config.segmenter)) if available["segmenter"] and not classify_only else None
     if classifier is not None and classifier.task != "classify":
         raise ValueError("Веса classifier должны быть моделью YOLO classify")
     if segmenter is not None and segmenter.task != "segment":
@@ -118,14 +118,16 @@ def assess_objects(objects, input_dir, config, device):
         for start in range(0, len(regions), 8):
             batch = regions[start:start + 8]
             crops = [crop for _, crop, _, _ in batch]
+            options = {"imgsz": 640} if classify_only else {}
             classifications = classifier.predict([square_image(crop) for crop in crops], device=device,
-                                                  verbose=False) if classifier else [None] * len(batch)
+                                                  verbose=False, **options) if classifier else [None] * len(batch)
             segments = segmenter.predict(crops, conf=config.segmentation_confidence, device=device,
                                          max_det=40, verbose=False) if segmenter else [None] * len(batch)
             for (item, _, left, top), clas, seg in zip(batch, classifications, segments):
                 prediction = None
                 if clas is not None and clas.probs is not None:
                     prediction = (clas.names[clas.probs.top1], round(float(clas.probs.top1conf), 4))
+                    item["condition_prediction"] = prediction[0]
                 masks = []
                 if seg is not None and seg.masks is not None and seg.boxes is not None:
                     for box, polygon in zip(seg.boxes, seg.masks.xy):

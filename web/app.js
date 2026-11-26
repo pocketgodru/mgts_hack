@@ -7,7 +7,12 @@ const demoButtons = document.querySelectorAll('[data-demo]');
 const preview = $('#preview');
 const routePage = Boolean($('#map'));
 const sharedRun = new URLSearchParams(location.search).get('run');
-const typeNames = { odn: 'ОДН', manhole: 'Кабельный колодец' };
+const typeNames = { odn: 'ОДН', manhole: 'Кабельный колодец', dss: 'Шкаф ДСС' };
+const conditionNames = { normal: 'Норма', damaged: 'Повреждение' };
+const analysisMode = $('#analysis-mode');
+const isDssMode = () => analysisMode?.value === 'dss';
+let dssReady = false;
+let detectionNote = 'Проверяем модели';
 const classNames = { pole: 'Опора', antenna: 'Антенна', rru: 'RRU', microwave: 'РРЛ', manhole: 'Люк' };
 const classColors = { pole: '#7ee4bf', antenna: '#7eaaff', rru: '#daabff', microwave: '#ffce7b', manhole: '#ff5e85' };
 const statusNames = { repair: 'Ремонт', review: 'Проверка', unassessed: 'Не оценивалось', normal: 'Норма' };
@@ -62,8 +67,13 @@ async function jsonRequest(url, options) {
 
 function updateBusy(value = busy) {
   busy = value;
-  $('#analyze-button').disabled = busy || !modelsReady || !input.files.length;
+  $('#analyze-button').disabled = busy || !(isDssMode() ? dssReady : modelsReady) || !input.files.length;
   demoButtons.forEach(button => { button.disabled = busy || !modelsReady; });
+  analysisMode.disabled = busy;
+  $('#tile-input').disabled = busy || isDssMode();
+  $('#condition-state').textContent = isDssMode()
+    ? (dssReady ? 'YOLO26x-cls · фото одного шкафа в кадре' : 'Классификатор ДСС недоступен')
+    : detectionNote;
   $('#progress').hidden = !busy;
   $('#upload-form').setAttribute('aria-busy', String(busy));
 }
@@ -89,13 +99,14 @@ function detectionName(item) {
   return item.track_id == null ? name : name + ' #' + item.track_id;
 }
 
-async function runAnalysis(url, body) {
+async function runAnalysis(url, body, mode = 'detect') {
   if (busy) return;
   showError('');
   updateBusy(true);
   try {
-    const tile = $('#tile-input').checked;
-    current = await jsonRequest(url + '?tile=' + tile, { method: 'POST', body });
+    const params = new URLSearchParams({ tile: String(mode !== 'dss' && $('#tile-input').checked) });
+    if (mode === 'dss') params.set('mode', mode);
+    current = await jsonRequest(url + '?' + params, { method: 'POST', body });
     renderResult();
     history.replaceState(null, '', '/?run=' + encodeURIComponent(current.run_id) + '#registry');
     $('#registry').scrollIntoView({ block: 'start' });
@@ -108,6 +119,7 @@ async function runAnalysis(url, body) {
 }
 
 function initUpload() {
+  analysisMode.addEventListener('change', updateFiles);
   input.addEventListener('change', updateFiles);
   metadata.addEventListener('change', () => {
     const file = metadata.files[0];
@@ -135,6 +147,10 @@ function initUpload() {
     event.preventDefault();
     if (!input.files.length || busy) return;
     if (Array.from(input.files).some(isVideo)) {
+      if (isDssMode()) {
+        showError('Для оценки состояния шкафа загрузите фото JPEG или PNG');
+        return;
+      }
       if (input.files.length !== 1) {
         showError('Для одного анализа выберите один ролик или набор фотографий');
         return;
@@ -152,7 +168,7 @@ function initUpload() {
     const body = new FormData();
     Array.from(input.files).forEach(file => body.append('files', file));
     if (metadata.files.length) body.append('metadata', metadata.files[0]);
-    runAnalysis('/api/analyze', body);
+    runAnalysis('/api/analyze', body, isDssMode() ? 'dss' : 'detect');
   });
   demoButtons.forEach(button => button.addEventListener('click', () => {
     $('#upload').scrollIntoView({ block: 'start' });
@@ -171,6 +187,7 @@ for (const link of document.querySelectorAll('.nav a[href^="#"]')) {
 
 function updateHealth(data) {
   modelsReady = Boolean(data.model_available);
+  dssReady = Boolean(data.dss_classifier_available);
   $('#health').className = 'health ' + (modelsReady ? 'ready' : 'failed');
   $('#health span').textContent = modelsReady ? data.model + ' · ' + deviceLabel(data) : 'Детектор недоступен';
   const condition = $('#condition-state');
@@ -186,6 +203,7 @@ function updateHealth(data) {
     if (data.condition_models.segmenter) modules.push('сегментация');
     condition.textContent = 'Подключено: ' + modules.join(' и ');
   }
+  detectionNote = condition.textContent;
   updateBusy();
 }
 
@@ -223,7 +241,9 @@ function renderRegistry() {
 
     const status = element('td');
     status.append(element('span', statusNames[row.status], 'pill ' + row.status));
-    if (row.defect) status.append(element('small', row.defect));
+    if (row.condition_prediction) {
+      status.append(element('small', 'Прогноз: ' + (conditionNames[row.condition_prediction] || row.condition_prediction)));
+    } else if (row.defect) status.append(element('small', row.defect));
     if (row.condition_confidence !== null) {
       status.append(element('small', 'Уверенность ' + Math.round(row.condition_confidence * 100) + '%'));
     }
@@ -850,7 +870,8 @@ function renderResult() {
     current.elapsed_seconds.toLocaleString('ru-RU') + ' с' + (current.cpu_fallback ? ' · резервный режим' : '');
   $('#download-actions').href = downloads.inspection;
   $('#download-registry').href = downloads.registry;
-  $('#download-detections').href = downloads.detections;
+  $('#download-detections').hidden = !downloads.detections;
+  if (downloads.detections) $('#download-detections').href = downloads.detections;
   $('#open-result-map').href = '/routes?run=' + encodeURIComponent(run_id);
   $('#kind-filter').value = '';
   $('#status-filter').value = '';
@@ -910,6 +931,7 @@ if (routePage) {
   initRoutes();
 } else {
   initUpload();
+  initEquipmentReview();
   if (sharedRun) {
     jsonRequest('/api/runs/' + encodeURIComponent(sharedRun)).then(result => {
       if (current || busy) return;
@@ -920,11 +942,72 @@ if (routePage) {
 }
 jsonRequest('/api/health').then(updateHealth).catch(() => {
   modelsReady = false;
+  dssReady = false;
   $('#health').className = 'health failed';
   $('#health span').textContent = 'Сервис недоступен';
   const condition = $('#condition-state');
   if (condition) {
-    condition.textContent = 'Не удалось проверить модели';
+    detectionNote = 'Не удалось проверить модели';
     updateBusy();
   }
 });
+
+async function initEquipmentReview() {
+  const section = $('#equipment-review');
+  if (!section) return;
+  const names = { antenna: 'Антенна', rru: 'Радиомодуль', microwave: 'Радиорелейная антенна' };
+  const labels = { damaged: 'Повреждение', normal: 'Норма', review: 'Низкая уверенность' };
+  const pageSize = 24;
+  const kind = $('#equipment-kind');
+  const output = $('#equipment-output');
+  const previous = $('#equipment-prev');
+  const next = $('#equipment-next');
+  let page = 0;
+  try {
+    const { summary, rows } = await jsonRequest('/api/equipment-review');
+    const stats = [
+      ['Фрагменты', summary.images], ['Исходные кадры', summary.frames],
+      ['Точки архива', summary.sites], ['Низкая уверенность', summary.outputs.review || 0],
+    ];
+    $('#equipment-stats').replaceChildren(...stats.map(([label, value]) => {
+      const card = element('div');
+      card.append(element('span', label), element('strong', String(value)));
+      return card;
+    }));
+    function render() {
+      const filtered = rows.filter(row => (!kind.value || row.kind === kind.value)
+        && (!output.value || row.output === output.value));
+      const start = page * pageSize;
+      const displayed = filtered.slice(start, start + pageSize);
+      $('#equipment-body').replaceChildren(...displayed.map(row => {
+        const tr = element('tr');
+        const source = element('td', 'Точка ' + row.site_id);
+        source.append(element('small', row.frame));
+        const link = element('a', 'Открыть');
+        link.href = '/api/equipment-review/crop/' + encodeURIComponent(row.crop);
+        link.target = '_blank';
+        link.rel = 'noopener';
+        const image = element('td');
+        image.append(link);
+        tr.append(source, element('td', names[row.kind]), element('td', labels[row.prediction]),
+          element('td', (row.confidence * 100).toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + '%'),
+          element('td', labels[row.output]), image);
+        return tr;
+      }));
+      $('#equipment-position').textContent = filtered.length
+        ? (start + 1) + '–' + (start + displayed.length) + ' из ' + filtered.length
+        : 'Фрагментов по фильтру нет';
+      previous.disabled = page === 0;
+      next.disabled = start + pageSize >= filtered.length;
+    }
+    [kind, output].forEach(select => select.addEventListener('change', () => { page = 0; render(); }));
+    previous.addEventListener('click', () => { page--; render(); });
+    next.addEventListener('click', () => { page++; render(); });
+    render();
+    $('#equipment-message').hidden = true;
+    $('#equipment-download').hidden = false;
+    $('#equipment-data').hidden = false;
+  } catch {
+    $('#equipment-message').textContent = 'Архивный прогон пока недоступен.';
+  }
+}

@@ -34,7 +34,7 @@ RUN --mount=type=cache,target=/root/.cache/pip python -m pip install --timeout 9
 
 COPY docker_entrypoint.py web_app.py condition.py infer_detector.py odn.py registry.py video_tracking.py ./
 COPY web/ ./web/
-COPY models/odn-yolo26s.pt models/manhole-yolo26s.pt models/condition.example.json ./models/
+COPY models/odn-yolo26s.pt models/manhole-yolo26s.pt models/condition.example.json models/dss-yolo26x-cls.pt ./models/
 COPY demo/ ./demo/
 
 USER app

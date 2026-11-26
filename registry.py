@@ -5,7 +5,7 @@ from bisect import bisect_left
 from collections import Counter, defaultdict
 
 
-TYPE_NAMES = {"odn": "Опора двойного назначения", "manhole": "Кабельный колодец"}
+TYPE_NAMES = {"odn": "Опора двойного назначения", "manhole": "Кабельный колодец", "dss": "Шкаф ДСС"}
 STATUS = {
     "repair": ("Ремонт", "Передать в ремонт после подтверждения"),
     "review": ("Проверка", "Проверить по кадру или на месте"),
@@ -47,7 +47,7 @@ def read_frame_csv(data, frame_names):
         if frame not in frame_names or frame in rows or frame_names[frame] != 1:
             raise ValueError(f"Строка {reader.line_num}: имя кадра не найдено или неоднозначно: {frame or 'пусто'}")
         if kind and kind not in TYPE_NAMES:
-            raise ValueError(f"Строка {reader.line_num}: object_type должен быть odn или manhole")
+            raise ValueError(f"Строка {reader.line_num}: object_type должен быть odn, manhole или dss")
         if len(asset_id) > 160:
             raise ValueError(f"Строка {reader.line_num}: object_id слишком длинный")
         latitude_text, longitude_text = value("latitude"), value("longitude")
@@ -187,14 +187,14 @@ def write_registry(path, rows):
         writer = csv.writer(handle, delimiter=";")
         writer.writerow(["object_id", "object_type", "status", "defect", "recommendation", "latitude", "longitude",
                          "coordinate_source", "frame", "evidence_url", "detection_confidence",
-                         "condition_confidence", "observations", "coordinate_frame"])
+                         "condition_confidence", "observations", "coordinate_frame", "condition_prediction"])
         for row in rows:
             status, recommendation = STATUS[row["status"]]
             writer.writerow([cell(row["object_id"] or row["observation_id"]), TYPE_NAMES[row["kind"]], status,
                              cell(row["defect"]), recommendation, row["latitude"], row["longitude"],
                              row["coordinate_source"], cell(row["frame_label"]), row["evidence_url"],
                              row["detection_confidence"], row["condition_confidence"], row["observations"],
-                             cell(row.get("coordinate_frame"))])
+                             cell(row.get("coordinate_frame")), cell(row.get("condition_prediction"))])
 
 
 def status_counts(rows):

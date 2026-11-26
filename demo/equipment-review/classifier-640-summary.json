@@ -1,0 +1,36 @@
+{
+  "images": 336,
+  "frames": 214,
+  "sites": 206,
+  "model": "runs\\final-dss\\comparison-640\\yolo26x\\classify\\weights\\best.pt",
+  "imgsz": 640,
+  "threshold": 0.65,
+  "device": "AMD Radeon RX 9070 XT",
+  "batch": 8,
+  "elapsed_seconds": 75.62,
+  "predictions": {
+    "damaged": 316,
+    "normal": 20
+  },
+  "outputs": {
+    "damaged": 312,
+    "normal": 13,
+    "review": 11
+  },
+  "outputs_by_equipment": {
+    "rru": {
+      "damaged": 60,
+      "review": 9,
+      "normal": 11
+    },
+    "antenna": {
+      "damaged": 249,
+      "normal": 2,
+      "review": 2
+    },
+    "microwave": {
+      "damaged": 3
+    }
+  },
+  "validated_for_equipment": false
+}

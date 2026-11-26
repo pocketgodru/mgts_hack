@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#130f15">
+  <meta name="theme-color" content="#0b1b2e">
   <meta name="description" content="Анализ кадров и реестр городской инфраструктуры МГТС">
   <title>МГТС · Городской мониторинг</title>
-  <link rel="stylesheet" href="/static/styles.css">
-  <script defer src="/static/app.js"></script>
+  <link rel="stylesheet" href="/static/styles.css?v=dss-classifier">
+  <script defer src="/static/app.js?v=dss-classifier"></script>
 </head>
 <body>
   <header class="topbar glass">
     <a class="brand" href="#overview" aria-label="МГТС, на обзор">
-      <span class="brand-mark">МГТС</span>
+      <span class="brand-mark"><img src="/static/mgts-logo.svg" alt="МГТС"></span>
       <span class="brand-title">Городской мониторинг</span>
     </a>
     <nav class="nav" aria-label="Разделы">
@@ -27,10 +27,11 @@
     <section class="hero glass" aria-labelledby="hero-title">
       <div class="hero-copy">
         <h1 id="hero-title">Инфраструктура <span>под наблюдением</span></h1>
-        <p>Загрузите кадры с городского маршрута. Система найдёт опоры и кабельные колодцы, покажет их на карте и соберёт реестр.</p>
+        <p>Найдите опоры и люки на кадрах маршрута или оцените состояние шкафа ДСС по фотографии. Результаты появятся в реестре.</p>
         <div class="hero-actions">
           <a class="button primary" href="#upload">Загрузить фото или видео</a>
-          <button class="button glass-button" type="button" data-demo>Запустить демо</button>
+          <a class="button glass-button" href="#equipment-review">Реестр архива</a>
+          <button class="button text-action" type="button" data-demo>Запустить демо</button>
         </div>
       </div>
       <figure class="hero-visual">
@@ -54,6 +55,9 @@
         </label>
         <ul id="file-list" class="file-list" aria-label="Выбранные кадры" hidden></ul>
         <div class="upload-options">
+          <label class="analysis-mode" for="analysis-mode">Режим
+            <select id="analysis-mode"><option value="detect">Поиск объектов</option><option value="dss">Состояние шкафа ДСС</option></select>
+          </label>
           <div class="metadata-input">
             <label class="file-button" for="metadata-input"><span aria-hidden="true">+</span> <span id="metadata-label">Метаданные CSV</span></label>
             <input id="metadata-input" class="visually-hidden" type="file" accept=".csv,text/csv">
@@ -89,7 +93,7 @@
           <div><span>Проверка и ремонт</span><strong id="stat-actions">0</strong></div>
         </div>
         <div class="filters">
-          <div><label for="kind-filter">Тип</label><select id="kind-filter"><option value="">Все типы</option><option value="odn">Опоры</option><option value="manhole">Колодцы</option></select></div>
+          <div><label for="kind-filter">Тип</label><select id="kind-filter"><option value="">Все типы</option><option value="odn">Опоры</option><option value="manhole">Колодцы</option><option value="dss">Шкафы ДСС</option></select></div>
           <div><label for="status-filter">Состояние</label><select id="status-filter"><option value="">Все статусы</option><option value="review">Проверка</option><option value="repair">Ремонт</option><option value="normal">Норма</option><option value="unassessed">Не оценивалось</option></select></div>
           <p id="run-meta"></p>
         </div>
@@ -99,6 +103,26 @@
             <tbody id="registry-body"></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <section id="equipment-review" class="panel glass registry-panel" aria-labelledby="equipment-title">
+      <div class="section-heading registry-heading">
+        <h2 id="equipment-title">Реестр архива</h2>
+        <a id="equipment-download" class="button glass-button small" href="/api/equipment-review/report" download hidden>Выгрузить CSV</a>
+      </div>
+      <p class="equipment-note">Экспериментальная оценка YOLO26x-cls. Модель обучалась на шкафах РЩ и ТКШ. Прогнозы по антеннам и радиомодулям требуют проверки.</p>
+      <p id="equipment-message" class="equipment-note" role="status">Загружаем архивный прогон</p>
+      <div id="equipment-data" hidden>
+        <div id="equipment-stats" class="stats equipment-stats"></div>
+        <div class="filters">
+          <div><label for="equipment-kind">Оборудование</label><select id="equipment-kind"><option value="">Все типы</option><option value="antenna">Антенны</option><option value="rru">Радиомодули</option><option value="microwave">Радиорелейные антенны</option></select></div>
+          <div><label for="equipment-output">Результат модели</label><select id="equipment-output"><option value="">Все результаты</option><option value="damaged">Повреждение</option><option value="normal">Норма</option><option value="review">Низкая уверенность</option></select></div>
+        </div>
+        <div class="table-scroll">
+          <table><thead><tr><th>Точка и кадр</th><th>Оборудование</th><th>Прогноз</th><th>Уверенность</th><th>Результат</th><th>Фрагмент</th></tr></thead><tbody id="equipment-body"></tbody></table>
+        </div>
+        <div class="equipment-pages"><button id="equipment-prev" class="button glass-button small" type="button">Назад</button><span id="equipment-position" role="status"></span><button id="equipment-next" class="button glass-button small" type="button">Далее</button></div>
       </div>
     </section>
 
